@@ -4,3 +4,4 @@ mnemonic
 requests
 beautifulsoup4
 psutil
+ijson
