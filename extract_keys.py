@@ -1,33 +1,37 @@
 import json
 import os
+import gc   # garbage collector
 
-# Folder containing your 4 JSON files
-FOLDER = "./json_files"
-
-# Output file
+JSON_DIR = "./json_files"
 OUTPUT_FILE = "all_keys.txt"
 
-all_keys = []
+def extract_keys_stream():
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as outfile:
 
-# Loop through all JSON files
-for filename in sorted(os.listdir(FOLDER)):
-    if filename.endswith(".json"):
-        filepath = os.path.join(FOLDER, filename)
-        print(f"Reading: {filepath}")
-        
-        # Load JSON (dictionary)
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        # Collect keys
-        all_keys.extend(data.keys())
+        for fname in os.listdir(JSON_DIR):
+            if not fname.endswith(".json"):
+                continue
 
-# Join keys with "_"
-result = "_".join(all_keys)
+            full_path = os.path.join(JSON_DIR, fname)
+            print("Reading:", full_path)
 
-# Save to a single text file
-with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
-    out.write(result)
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
 
-print("\n✔ All keys saved to", OUTPUT_FILE)
-print(f"Total keys collected: {len(all_keys)}")
+                    data = json.load(f)
+
+                    for key in data.keys():
+                        outfile.write(key + "_")
+
+                # 🔥 Free memory immediately
+                del data
+                gc.collect()  # force garbage collector
+
+            except Exception as e:
+                print("Error:", e)
+
+    print("✅ Done. Keys saved into", OUTPUT_FILE)
+
+
+if __name__ == "__main__":
+    extract_keys_stream()
