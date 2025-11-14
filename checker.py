@@ -32,15 +32,15 @@ def key_exists(file_path: str, key: str) -> bool:
     return False
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     if len(sys.argv) != 3:
-#         print("Usage: python checker.py <FILE_PATH> <KEY>")
-#         exit(1)
+    if len(sys.argv) != 3:
+        print("Usage: python checker.py <FILE_PATH> <KEY>")
+        exit(1)
 
-#     file_path = sys.argv[1]
-#     key = sys.argv[2]
+    file_path = sys.argv[1]
+    key = sys.argv[2]
 
-#     found = key_exists(file_path, key)
+    found = key_exists(file_path, key)
 
-#     print(found)
+    print(found)
