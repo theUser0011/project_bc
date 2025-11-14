@@ -3,3 +3,4 @@ bip-utils
 mnemonic
 requests
 beautifulsoup4
+psutil
