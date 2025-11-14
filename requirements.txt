@@ -1,0 +1,5 @@
+gdown
+bip-utils
+mnemonic
+requests
+beautifulsoup4
