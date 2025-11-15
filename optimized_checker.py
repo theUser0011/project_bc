@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 """
-optimized_checker.py
-Ultra-fast address lookup using mmap (zero RAM, kernel-paged).
+optimized_checker.py – Ultra-fast key lookup using mmap
 """
 
 import mmap
 import os
-from typing import List
 
 def key_exists(file_path: str, key: str) -> bool:
-    """
-    Returns True if *key* appears anywhere in *file_path*.
-    Uses memory-mapped I/O → no RAM consumption.
-    """
+    """Return True if key exists in file using memory-mapped I/O."""
     if not key:
         return False
 
@@ -29,6 +24,5 @@ def key_exists(file_path: str, key: str) -> bool:
             with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mm:
                 return mm.find(key_bytes) != -1
     except (OSError, ValueError):
-        # File too small / permission issue → fall back to normal read
         with open(file_path, "rb") as f:
             return key_bytes in f.read()

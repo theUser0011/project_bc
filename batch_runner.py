@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-batch_runner.py – BTC Seed Scanner with Telegram Alerts & Progress
+batch_runner.py – BTC Seed Scanner with mmap key_exists + Telegram
 """
 
 import sys
@@ -14,7 +14,7 @@ from datetime import datetime
 # Local imports
 from batch_generator import mnemonics_at_relative_index
 from address_generator import four_addresses
-from telegram_utils import msg_fun, file_fun  # <-- NEW: Telegram support
+from telegram_utils import msg_fun, file_fun  # Telegram support
 
 # ----------------------------------------------------------------------
 # Config
@@ -89,10 +89,10 @@ def signal_handler(signum, frame):
 def main():
     global BATCH, CSV_FILE, LENGTH, PROGRESS_FILE, current_idx
 
-    parser = argparse.ArgumentParser(description="BTC Seed Scanner with Telegram Alerts")
+    parser = argparse.ArgumentParser(description="BTC Seed Scanner with mmap key_exists")
     parser.add_argument("batch", type=int, choices=[1,2,3,4], help="Batch number (1-4)")
     parser.add_argument("start_index", type=int, help="Start from this relative index")
-    parser.add_argument("csv_file", help="Path to CSV with known addresses (all_keys.txt)")
+    parser.add_argument("csv_file", help="Path to all_keys.txt")
     parser.add_argument("length", type=int, nargs="?", default=12, choices=[12,15,18,21,24], help="Mnemonic length")
     args = parser.parse_args()
 
@@ -139,13 +139,13 @@ def main():
                     for addr in addrs:
                         all_addrs.add(addr)
                         addr_to_mnemonic[addr] = phrase
-                except Exception as e:
+                except Exception:
                     pass  # Invalid mnemonic → skip
 
-            # 3. Check each address
+            # 3. Check each address using mmap key_exists
             matched_addr = None
             for addr in all_addrs:
-                if stream_search(CSV_FILE, addr, ["legacy", "p2sh_segwit", "bech32", "taproot"]):
+                if key_exists(str(CSV_FILE), addr):   # <-- ULTRA-FAST MMAP
                     matched_addr = addr
                     break
 
@@ -177,15 +177,19 @@ def main():
 
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    # Dynamic import checker
+    # Dynamic import optimized_checker
     import importlib.util
     import pathlib
 
-    checker_path = pathlib.Path(__file__).with_name("checker.py")
-    spec = importlib.util.spec_from_file_location("checker", checker_path)
+    checker_path = pathlib.Path(__file__).with_name("optimized_checker.py")
+    if not checker_path.exists():
+        print("ERROR: optimized_checker.py not found!", file=sys.stderr)
+        sys.exit(1)
+
+    spec = importlib.util.spec_from_file_location("optimized_checker", checker_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    stream_search = mod.stream_search
+    key_exists = mod.key_exists  # <-- Use mmap version
 
     # Dynamic import telegram_utils
     tg_path = pathlib.Path(__file__).with_name("telegram_utils.py")
@@ -196,7 +200,6 @@ if __name__ == "__main__":
         globals()["msg_fun"] = tg_mod.msg_fun
         globals()["file_fun"] = tg_mod.file_fun
     else:
-        # Fallback: dummy functions if telegram_utils not present
         def msg_fun(m): print("Telegram disabled:", m)
         def file_fun(f, c=""): print("File send disabled:", f)
 
