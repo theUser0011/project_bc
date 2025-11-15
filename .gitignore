@@ -2,3 +2,36 @@ json_files
 temp
 .env
 env
+# === RUNTIME / OUTPUT ===
+logs/
+progress/
+hits/
+all_keys.txt
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === PID / TEMP FILES ===
+*.pid
+*.log
+*.tmp
+*.bak
+temp/
+.env
+env
+
+# === GENERATED DATA ===
+json_files/
+
+# === PYTHON BUILD ===
+*.egg-info/
+dist/
+build/
+*.egg
+
+# === OS / EDITOR ===
+.DS_Store
+Thumbs.db
+*.swp
+*~
