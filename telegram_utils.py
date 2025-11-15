@@ -12,7 +12,7 @@ def _get_keys() -> tuple[str, str]:
     if not KEYS:
         raise ValueError("Environment variable 'KEYS' not found. Format: BOT_TOKEN_CHAT_ID")
     try:
-        BOT_TOKEN, CHAT_ID = KEYS.split("_", 1)
+        BOT_TOKEN, CHAT_ID = KEYS.split("-", 1)
         return BOT_TOKEN, CHAT_ID
     except ValueError:
         raise ValueError("Invalid KEYS format. Use BOT_TOKEN_CHAT_ID")
