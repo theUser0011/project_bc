@@ -1,46 +1,48 @@
 # checker.py
-import sys
+# 4. Stream-search CSV for matching BTC addresses
 
-def key_exists(file_path: str, key: str) -> bool:
+from pathlib import Path
+import csv
+
+def check_addresses(addresses, csv_file="balances.csv"):
     """
-    Stream-search for a key inside a large text file without loading into RAM.
-    Returns True if found, else False.
+    Stream-search through the CSV and return matched addresses.
+    
+    CSV FORMAT EXPECTED:
+        address,balance
     """
 
-    key = key.strip()
+    csv_path = Path(csv_file)
+    if not csv_path.exists():
+        print(f"[ERROR] CSV file not found: {csv_path}")
+        return []
 
-    # Make sure we catch keys that are cut between 2 chunks
-    carry_over = ""
+    addresses_set = set(addresses)   # O(1) lookup
+    found = []
 
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        while True:
-            chunk = f.read(1024 * 1024)  # 1 MB chunk
-            
-            if not chunk:
-                break
+    with csv_path.open("r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row:
+                continue
+            try:
+                addr, balance = row[0], row[1]
+            except IndexError:
+                continue
 
-            # Combine last part of previous chunk + current chunk
-            combined = carry_over + chunk
+            if addr in addresses_set:
+                print(f"[MATCH] {addr} → {balance}")
+                found.append((addr, balance))
 
-            # Check if key exists
-            if key in combined:
-                return True
-
-            # Save last 100 characters to detect boundary matches
-            carry_over = combined[-100:]
-
-    return False
+    return found
 
 
+# Quick test when running alone
 if __name__ == "__main__":
+    test_addresses = ["1ExampleAddressA", "1RandomAddress"]
+    results = check_addresses(test_addresses, "balances.csv")
 
-    if len(sys.argv) != 3:
-        print("Usage: python checker.py <FILE_PATH> <KEY>")
-        exit(1)
-
-    file_path = sys.argv[1]
-    key = sys.argv[2]
-
-    found = key_exists(file_path, key)
-
-    print(found)
+    if results:
+        print("FOUND:", results)
+    else:
+        print("No matches found.")
