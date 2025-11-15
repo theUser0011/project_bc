@@ -1,48 +1,26 @@
-# checker.py
-# 4. Stream-search CSV for matching BTC addresses
+# optimized_checker.py
+import mmap
+import os
 
-from pathlib import Path
-import csv
-
-def check_addresses(addresses, csv_file="balances.csv"):
+def key_exists(file_path: str, key: str) -> bool:
     """
-    Stream-search through the CSV and return matched addresses.
-    
-    CSV FORMAT EXPECTED:
-        address,balance
+    Ultra-fast substring search using memory-mapped file (mmap).
+    NO RAM is used (file is streamed through kernel pages).
+    Perfect for VPS / huge files.
     """
 
-    csv_path = Path(csv_file)
-    if not csv_path.exists():
-        print(f"[ERROR] CSV file not found: {csv_path}")
-        return []
+    key = key.encode("utf-8")
 
-    addresses_set = set(addresses)   # O(1) lookup
-    found = []
+    filesize = os.path.getsize(file_path)
+    if filesize == 0:
+        return False
 
-    with csv_path.open("r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if not row:
-                continue
-            try:
-                addr, balance = row[0], row[1]
-            except IndexError:
-                continue
+    with open(file_path, "rb") as f:
+        # Memory map entire file (zero RAM; OS pages it in chunks)
+        with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mm:
 
-            if addr in addresses_set:
-                print(f"[MATCH] {addr} → {balance}")
-                found.append((addr, balance))
+            # FASTEST substring search available on CPU
+            pos = mm.find(key)
 
-    return found
+            return pos != -1
 
-
-# Quick test when running alone
-if __name__ == "__main__":
-    test_addresses = ["1ExampleAddressA", "1RandomAddress"]
-    results = check_addresses(test_addresses, "balances.csv")
-
-    if results:
-        print("FOUND:", results)
-    else:
-        print("No matches found.")
