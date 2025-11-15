@@ -1,0 +1,194 @@
+#!/bin/bash
+# =============================================================================
+# servercontrol – Full BTC Seed Scanner Control Panel
+# Commands: ./servercontrol {start|stop|restart|status} <batch_number>
+# Example: ./servercontrol start 1
+# =============================================================================
+
+set -euo pipefail
+
+# ----------------------------------------------------------------------
+# Project paths
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON="python3"
+
+BATCH_RUNNER="$PROJECT_DIR/batch_runner.py"
+LOG_MANAGER="$PROJECT_DIR/log_manager.py"
+CSV_FILE="$PROJECT_DIR/all_keys.txt"   # CHANGE IF YOUR FILE IS NAMED DIFFERENTLY
+
+PROGRESS_DIR="$PROJECT_DIR/progress"
+LOG_DIR="$PROJECT_DIR/logs"
+HITS_DIR="$PROJECT_DIR/hits"
+
+mkdir -p "$PROGRESS_DIR" "$LOG_DIR" "$HITS_DIR"
+
+# ----------------------------------------------------------------------
+# PID & Progress helpers
+pidfile() {
+    echo "$PROJECT_DIR/.batch${1}.pid"
+}
+
+logmanager_pidfile() {
+    echo "$PROJECT_DIR/.logmanager.pid"
+}
+
+progfile() {
+    echo "$PROGRESS_DIR/batch${1}.txt"
+}
+
+logfile() {
+    echo "$LOG_DIR/batch${1}.log"
+}
+
+# ----------------------------------------------------------------------
+# Validate batch
+validate_batch() {
+    [[ "$1" =~ ^[1-4]$ ]] || {
+        echo "Error: batch must be 1, 2, 3 or 4"
+        exit 1
+    }
+}
+
+# ----------------------------------------------------------------------
+# Start log manager daemon (once per system)
+start_log_manager() {
+    local pidf="$(logmanager_pidfile)"
+    local logf="$LOG_DIR/logmanager.log"
+
+    if [[ -f "$pidf" ]] && kill -0 "$(cat "$pidf")" 2>/dev/null; then
+        echo "Log manager already running (PID $(cat "$pidf"))"
+        return 0
+    fi
+
+    echo "Starting log manager daemon..."
+    nohup $PYTHON "$LOG_MANAGER" > "$logf" 2>&1 &
+    echo $! > "$pidf"
+    echo "Log manager started (PID $!) → $logf"
+}
+
+# ----------------------------------------------------------------------
+# START batch
+cmd_start() {
+    validate_batch "$1"
+    local batch="$1"
+    local pidf="$(pidfile "$batch")"
+    local progf="$(progfile "$batch")"
+    local logf="$(logfile "$batch")"
+
+    # Start log manager
+    start_log_manager
+
+    if [[ -f "$pidf" ]] && kill -0 "$(cat "$pidf")" 2>/dev/null; then
+        echo "Batch $batch is already running (PID $(cat "$pidf"))"
+        exit 1
+    fi
+
+    # Determine start index
+    local start_idx=0
+    if [[ -f "$progf" ]]; then
+        start_idx=$(cat "$progf")
+        echo "Resuming batch $batch from index $start_idx"
+    else
+        echo "Starting batch $batch from index 0"
+    fi
+
+    # Launch
+    echo "Launching batch $batch → $logf"
+    nohup $PYTHON "$BATCH_RUNNER" "$batch" "$start_idx" "$CSV_FILE" 12 > "$logf" 2>&1 &
+    echo $! > "$pidf"
+    echo "Started batch $batch (PID $!) | Log: $logf"
+}
+
+# ----------------------------------------------------------------------
+# STOP batch
+cmd_stop() {
+    validate_batch "$1"
+    local batch="$1"
+    local pidf="$(pidfile "$batch")"
+
+    if [[ ! -f "$pidf" ]]; then
+        echo "Batch $batch is not running"
+        return 0
+    fi
+
+    local pid=$(cat "$pidf")
+    if kill "$pid" 2>/dev/null; then
+        echo "Stopped batch $batch (PID $pid)"
+    else
+        echo "PID $pid not responding. Removing stale PID file."
+    fi
+    rm -f "$pidf"
+}
+
+# ----------------------------------------------------------------------
+# RESTART → stop + delete progress + start
+cmd_restart() {
+    validate_batch "$1"
+    local batch="$1"
+    local progf="$(progfile "$batch")"
+
+    echo "Restarting batch $batch (resetting progress to 0)"
+    cmd_stop "$batch" || true
+    rm -f "$progf"
+    cmd_start "$batch"
+}
+
+# ----------------------------------------------------------------------
+# STATUS
+cmd_status() {
+    validate_batch "$1"
+    local batch="$1"
+    local pidf="$(pidfile "$batch")"
+    local progf="$(progfile "$batch")"
+    local logf="$(logfile "$batch")"
+
+    if [[ -f "$pidf" ]] && kill -0 "$(cat "$pidf")" 2>/dev/null; then
+        local pid=$(cat "$pidf")
+        local idx="?"
+        [[ -f "$progf" ]] && idx=$(cat "$progf")
+        echo "Batch $batch: RUNNING (PID $pid)"
+        echo "    Current index: $idx"
+        echo "    Log: $logf"
+        [[ -f "$HITS_DIR/batch${batch}_hit_at_"*".txt" ]] && echo "    HIT FOUND! Check $HITS_DIR/"
+    else
+        echo "Batch $batch: STOPPED"
+        [[ -f "$progf" ]] && echo "    Last index: $(cat "$progf")"
+    fi
+
+    # Log manager status
+    local lmpid="$(logmanager_pidfile)"
+    if [[ -f "$lmpid" ]] && kill -0 "$(cat "$lmpid")" 2>/dev/null; then
+        echo "Log manager: RUNNING (PID $(cat "$lmpid"))"
+    else
+        echo "Log manager: STOPPED"
+    fi
+}
+
+# ----------------------------------------------------------------------
+# MAIN
+if [[ $# -lt 2 ]]; then
+    cat << EOF
+Usage: $0 {start|stop|restart|status} <batch_number>
+
+Examples:
+  $0 start 1        # Start or resume batch 1
+  $0 stop 2         # Stop batch 2
+  $0 restart 3      # Reset and restart batch 3
+  $0 status 4       # Show status of batch 4
+
+Environment:
+  export KEYS="BOT_TOKEN_CHAT_ID"  # Required for Telegram alerts
+EOF
+    exit 1
+fi
+
+CMD="$1"
+BATCH="$2"
+
+case "$CMD" in
+    start)   cmd_start   "$BATCH" ;;
+    stop)    cmd_stop    "$BATCH" ;;
+    restart) cmd_restart "$BATCH" ;;
+    status)  cmd_status  "$BATCH" ;;
+    *)       echo "Invalid command: $CMD"; exit 1 ;;
+esac
