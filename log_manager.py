@@ -61,6 +61,7 @@ def rotate_and_send():
 def daemon():
     print("Log manager daemon started. Will run every 24h.")
     while True:
+
         try:
             rotate_and_send()
         except Exception as e:
